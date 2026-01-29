@@ -3,3 +3,4 @@
 
 # Revert to the prebuild folder
 !prebuilt
+!prebuilt/**
