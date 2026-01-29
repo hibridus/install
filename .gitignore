@@ -1,0 +1,5 @@
+# Ignore all folders to avoid an incorrect pull
+*/
+
+# Revert to the prebuild folder
+!prebuilt
