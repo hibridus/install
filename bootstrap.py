@@ -219,6 +219,11 @@ def main():
             print(f"! The installed version {version} not synchronized.")
             sync_repositories()
     
+    print("Setupping Limine...")
+    subprocess.run(["./limine/bootstrap"], check=True)
+    subprocess.run(["./limine/configure", "--prefix=$PREFIX", "--enable-bios"], check=True)
+    subprocess.run(["make", "install"], check=True)
+    
     print("Installation done successfully.")
 
 

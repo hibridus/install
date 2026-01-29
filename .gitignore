@@ -4,3 +4,7 @@
 # Revert to the prebuild folder
 !prebuilt
 !prebuilt/**
+
+# Remove the Limine config files too
+config*
+GNUMakeFile
