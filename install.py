@@ -57,6 +57,7 @@ def place_file(build_dir, file, target_base, subpath):
     print(f"\t+ {src} -> {dst}")
 
 def main():
+    BUILD.mkdir(parents=True, exist_ok=True)
     print("Executing mount scripts...")
 
     scripts = find_build_scripts()

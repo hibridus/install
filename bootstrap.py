@@ -1,4 +1,5 @@
 import sys
+import os
 import json
 import shutil
 import subprocess
@@ -35,7 +36,7 @@ from pathlib import Path
 # If you have any questions, please read 
 # https://github.com/hibridus/docs/BOOTSTRAP.md
 
-REQUIRED_PACKAGES = ["xorriso", "nasm", "clang", "automake"]
+REQUIRED_PACKAGES = ["xorriso", "nasm", "clang", "automake", "lld"]
 
 def abort():
     print("! Setup stopped due an error.")
@@ -221,7 +222,10 @@ def main():
     
     print("Setupping Limine...")
     subprocess.run(["./limine/bootstrap"], check=True)
-    subprocess.run(["./limine/configure", "--prefix=$PREFIX", "--enable-bios"], check=True)
+
+    subprocess.run([
+        "./limine/configure", f"--prefix={os.environ.get('PREFIX','/usr/local')}", "--enable-bios"
+    ], check=True)
     subprocess.run(["make", "install"], check=True)
     
     print("Installation done successfully.")
