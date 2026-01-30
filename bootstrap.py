@@ -226,7 +226,7 @@ def main():
     subprocess.run([
         "./limine/configure", f"--prefix={os.environ.get('PREFIX','/usr/local')}", "--enable-bios"
     ], check=True)
-    subprocess.run(["make", "install"], check=True, cwd="limine")
+    subprocess.run(["make", "install"], check=True)
     
     print("Installation done successfully.")
 
