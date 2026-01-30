@@ -29,7 +29,7 @@ def run_build(script):
 
     try:
         out = subprocess.check_output(
-            ["python", script.name],
+            ["python3", script.name],
             cwd=script.parent,
             text=True
         )
