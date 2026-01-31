@@ -36,7 +36,7 @@ from pathlib import Path
 # If you have any questions, please read 
 # https://github.com/hibridus/docs/BOOTSTRAP.md
 
-REQUIRED_PACKAGES = ["xorriso", "nasm", "clang", "automake", "lld", "llvm"]
+REQUIRED_PACKAGES = ["xorriso", "nasm", "clang", "automake", "lld"]
 
 SRC_DIR = Path("src")
 CACHE_DIR = Path("cache")
@@ -147,7 +147,7 @@ def parse_repo_name(name):
 def clone_repo(repo):
     base, sub = parse_repo_name(repo)
     target = SRC_DIR / base / (sub if sub else "")
-    target.parent.mkdir(parents=True, exist_ok=True)
+    target.mkdir(parents=True, exist_ok=True)
 
     if any(target.iterdir()):
         print(f"! Skipping {repo}, directory already exists.")
@@ -200,26 +200,16 @@ def mount_config_json():
 
 def setup_limine():
     limine_dir = SRC_DIR / "limine"
-    limine_build = CACHE_DIR / "limine-build"
-    limine_install = CACHE_DIR / "limine-install"
 
     if not limine_dir.exists():
-        abort("Limine source not found in src/limine. Did you clone it?")
+        print("! Limine does not exist")
+        abort()
 
-    if limine_build.exists():
-        shutil.rmtree(limine_build)
-    limine_build.mkdir(parents=True)
+    subprocess.run(["./bootstrap"], check=True, cwd=limine_dir)
+    subprocess.run(["./configure", f"""--prefix={os.environ.get("PREFIX", "/usr/local")}""", "--enable-bios"], check=True, cwd=limine_dir)
+    subprocess.run(["make", "install"], check=True, cwd=limine_dir)
 
-    print("Setupping Limine in cache...")
-    subprocess.run([str(limine_dir / "bootstrap")], check=True, cwd=limine_dir)
-    subprocess.run([
-        str(limine_dir / "configure"),
-        f"--prefix={limine_install}",
-        "--enable-bios"
-    ], check=True, cwd=limine_build)
-    subprocess.run(["make", "install"], check=True, cwd=limine_build)
-
-    print(f"! Limine compiled and installed locally at {limine_install}")
+    print(f"! Limine compiled and installed at the system.")
 
 def main():
     print("Getting installation info...")
@@ -228,7 +218,9 @@ def main():
     checkup_and_install(manager)
 
     print("Checking system source code...")
-
+    
+    SRC_DIR.mkdir(parents=True, exist_ok=True)
+    
     if not is_hibridus_installed():
         print("! Hibridus not detected.")
         print("! Starting fresh installation...")
@@ -246,7 +238,6 @@ def main():
 
     setup_limine()
     print("Installation done successfully.")
-
 
 if __name__ == "__main__":
     main()
