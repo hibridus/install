@@ -36,7 +36,7 @@ from pathlib import Path
 # If you have any questions, please read 
 # https://github.com/hibridus/docs/BOOTSTRAP.md
 
-REQUIRED_PACKAGES = ["xorriso", "nasm", "clang", "automake", "lld"]
+REQUIRED_PACKAGES = ["xorriso", "nasm", "clang", "automake", "lld", "llvm"]
 
 SRC_DIR = Path("src")
 CACHE_DIR = Path("cache")
