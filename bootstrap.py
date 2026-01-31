@@ -38,6 +38,11 @@ from pathlib import Path
 
 REQUIRED_PACKAGES = ["xorriso", "nasm", "clang", "automake", "lld", "llvm"]
 
+SRC_DIR = Path("src")
+CACHE_DIR = Path("cache")
+CONFIG_JSON = CACHE_DIR / "config.json"
+REPOS_CACHE = CACHE_DIR / "repos.json"
+
 def abort():
     print("! Setup stopped due an error.")
     sys.exit(1)
@@ -113,14 +118,14 @@ def get_remote_version():
 
 def load_cache():
     try:
-        with open(Path("cache/repos.json")) as f:
+        with open(REPOS_CACHE) as f:
             return set(json.load(f))
     except FileNotFoundError:
         return set()
 
 def save_cache(repos):
-    Path("cache/repos.json").parent.mkdir(exist_ok=True)
-    with open(Path("cache/repos.json"), "w") as f:
+    REPOS_CACHE.parent.mkdir(exist_ok=True)
+    with open(REPOS_CACHE, "w") as f:
         json.dump(sorted(repos), f, indent=2)
 
 def get_repositories():
@@ -141,11 +146,10 @@ def parse_repo_name(name):
 
 def clone_repo(repo):
     base, sub = parse_repo_name(repo)
-    target = Path(base) / sub if sub else Path(base)
-
+    target = SRC_DIR / base / (sub if sub else "")
     target.parent.mkdir(parents=True, exist_ok=True)
 
-    if target.is_dir():
+    if any(target.iterdir()):
         print(f"! Skipping {repo}, directory already exists.")
         return True
 
@@ -183,6 +187,40 @@ def sync_repositories():
 
     print("Repository sync done.")
 
+def mount_config_json():
+    CACHE_DIR.mkdir(exist_ok=True)
+    CONFIG_JSON.write_text(
+"""{
+    "COMPILER": "clang",
+    "FLAGS": "-O0 -ffreestanding -fno-stack-protector -fno-pic -fno-pie -mno-red-zone -nostdlib -fno-builtin -fno-unwind-tables -fno-asynchronous-unwind-tables -Iinclude",
+    "TARGET": "x86_64-elf",
+    "LINKER": "ld.lld"
+}""")
+    print("! JSON mounted in cache/config.json\n" + CONFIG_JSON.read_text())
+
+def setup_limine():
+    limine_dir = SRC_DIR / "limine"
+    limine_build = CACHE_DIR / "limine-build"
+    limine_install = CACHE_DIR / "limine-install"
+
+    if not limine_dir.exists():
+        abort("Limine source not found in src/limine. Did you clone it?")
+
+    if limine_build.exists():
+        shutil.rmtree(limine_build)
+    limine_build.mkdir(parents=True)
+
+    print("Setupping Limine in cache...")
+    subprocess.run([str(limine_dir / "bootstrap")], check=True, cwd=limine_dir)
+    subprocess.run([
+        str(limine_dir / "configure"),
+        f"--prefix={limine_install}",
+        "--enable-bios"
+    ], check=True, cwd=limine_build)
+    subprocess.run(["make", "install"], check=True, cwd=limine_build)
+
+    print(f"! Limine compiled and installed locally at {limine_install}")
+
 def main():
     print("Getting installation info...")
     manager = get_install_manager()
@@ -195,40 +233,18 @@ def main():
         print("! Hibridus not detected.")
         print("! Starting fresh installation...")
         sync_repositories()
-        
-        print("Mounting JSON...")
-        
-        try:
-            Path("cache/config.json").write_text(
-"""{
-    "COMPILER": "clang",
-    "FLAGS": "-O2 -ffreestanding -fno-stack-protector -fno-pic -fno-pie -mno-red-zone -nostdlib -fno-builtin -fno-unwind-tables -fno-asynchronous-unwind-tables -Iinclude",
-    "TARGET": "x86_64-elf",
-    "LINKER": "ld.lld"
-}""")
-        except:
-            print("! Failed to create JSON file")
-    
-        print("! JSON mounted in cache/config.json\n" + Path("cache/config.json").read_text())
+        mount_config_json()
     else:
         version = get_installed_version()
         print(f"! Hibridus alredy installed.")
         print(f"! Installed version: {version}")
         print("Checking for updates...")
-        
         remote_version = get_remote_version()
-        if not version == remote_version:
+        if version != remote_version:
             print(f"! The installed version {version} not synchronized.")
             sync_repositories()
-    
-    print("Setupping Limine...")
-    subprocess.run(["./limine/bootstrap"], check=True)
 
-    subprocess.run([
-        "./limine/configure", f"--prefix={os.environ.get('PREFIX','/usr/local')}", "--enable-bios"
-    ], check=True)
-    subprocess.run(["make", "install"], check=True)
-    
+    setup_limine()
     print("Installation done successfully.")
 
 

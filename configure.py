@@ -36,8 +36,9 @@ CONFIG_PATH = Path("cache/config.json")
 
 DEFAULT_CONFIG = {
     "COMPILER": "clang",
-    "FLAGS": "O2 -ffreestanding -fno-stack-protector -fno-pic -fno-pie -mno-red-zone -mcmodel=kernel -nostdlib -fno-builtin -fno-unwind-tables -fno-asynchronous-unwind-tables",
-    "TARGET": "x86-64-elf"
+    "FLAGS": "-O0 -ffreestanding -fno-stack-protector -fno-pic -fno-pie -mno-red-zone -nostdlib -fno-builtin -fno-unwind-tables -fno-asynchronous-unwind-tables -Iinclude",
+    "TARGET": "x86_64-elf",
+    "LINKER": "ld.lld"
 }
 
 def abort():
