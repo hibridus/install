@@ -202,8 +202,9 @@ def main():
             Path("cache/config.json").write_text(
 """{
     "COMPILER": "clang",
-    "FLAGS": "-O2 -ffreestanding -fno-stack-protector -fno-pic -fno-pie -mno-red-zone -mcmodel=kernel -nostdlib -fno-builtin -fno-unwind-tables -fno-asynchronous-unwind-tables",
-    "TARGET": "x86-64-elf"
+    "FLAGS": "-O2 -ffreestanding -fno-stack-protector -fno-pic -fno-pie -mno-red-zone -nostdlib -fno-builtin -fno-unwind-tables -fno-asynchronous-unwind-tables -Iinclude",
+    "TARGET": "x86_64-elf",
+    "LINKER": "ld.lld"
 }""")
         except:
             print("! Failed to create JSON file")
