@@ -8,3 +8,4 @@
 # Remove the Limine config files too
 config*
 GNUmakefile
+stage1.stamp
