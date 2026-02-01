@@ -80,7 +80,7 @@ def main():
     CACHE.mkdir(parents=True, exist_ok=True)
     ISO_ROOT.mkdir(parents=True, exist_ok=True)
 
-    print("Update done succefully.")
+    print("Update done successfully.")
 
 if __name__ == "__main__":
     main()
