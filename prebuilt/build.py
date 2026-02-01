@@ -3,7 +3,7 @@
 
 print("""{
     "generic": {
-        "bin/BOOTX64.EFI": "EFI/BOOT/BOOTX64.EFI"
+        "bin/BOOTX64.EFI": "EFI/BOOT"
     },
     "boot": {
         "res/limine_wallpaper.bmp": "res/",

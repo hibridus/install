@@ -7,19 +7,19 @@ import requests
 from pathlib import Path
 
 # BSD 2-Clause License
-# 
+#
 # Copyright (c) 2026, Hibridus source code
-# 
+#
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
-# 
+#
 # 1. Redistributions of source code must retain the above copyright notice, this
 #    list of conditions and the following disclaimer.
-# 
+#
 # 2. Redistributions in binary form must reproduce the above copyright notice,
 #    this list of conditions and the following disclaimer in the documentation
 #    and/or other materials provided with the distribution.
-# 
+#
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 # AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 # IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -31,116 +31,90 @@ from pathlib import Path
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# This python script serves only to perform a setup before
-# running the Hibridus installation.
-# If you have any questions, please read 
-# https://github.com/hibridus/docs/BOOTSTRAP.md
-
 REQUIRED_PACKAGES = ["xorriso", "nasm", "clang", "automake", "lld", "llvm"]
 
-SRC_DIR = Path("src")
-CACHE_DIR = Path("cache")
+ROOT = Path(__file__).resolve().parent
+SRC_DIR = ROOT / "src"
+CACHE_DIR = ROOT / "cache"
+
 CONFIG_JSON = CACHE_DIR / "config.json"
 REPOS_CACHE = CACHE_DIR / "repos.json"
+VERSION_FILE = ROOT / "VERSION/VERSION.md"
 
-def abort():
-    print("! Setup stopped due an error.")
+VERSION_URL = "https://raw.githubusercontent.com/hibridus/VERSION/main/VERSION.md"
+REPOS_API = "https://api.github.com/orgs/hibridus/repos"
+
+def abort(msg="Setup stopped due an error."):
+    print(f"! {msg}")
     sys.exit(1)
 
-def is_installed(program):
-    # Check if a program exists in PATH
-    return shutil.which(program) is not None
+def run(cmd, **kw):
+    try:
+        subprocess.run(cmd, check=True, **kw)
+    except subprocess.CalledProcessError:
+        abort("Command failed: " + " ".join(cmd))
+
+def is_installed(bin):
+    return shutil.which(bin) is not None
 
 def get_install_manager():
-    # Cache detected manager to avoid re-checking because
-    # Python sucks
-    manager = getattr(get_install_manager, "manager", None)
-    if manager:
-        return manager
-
     for manager in ("dnf", "apk", "apt", "pacman", "zypper"):
         if is_installed(manager):
-            get_install_manager.manager = manager
             return manager
-
-    print("""
-! No standard package manager found.
-! Please read https://github.com/hibridus/docs/BOOTSTRAP.md
-! to more info.
-""")
-    abort()
+    abort("No supported package manager found.")
 
 def install_package(manager, pkg):
-    # Command templates for each package manager
-    templates = {
-        "apt": ["sudo", "apt", "install", "-y", "{pkg}"],
-        "dnf": ["sudo", "dnf", "install", "-y", "{pkg}"],
-        "pacman": ["sudo", "pacman", "-S", "--noconfirm", "{pkg}"],
-        "zypper": ["sudo", "zypper", "install", "-y", "{pkg}"],
-        "apk": ["sudo", "apk", "add", "{pkg}"]
+    cmds = {
+        "apt": ["sudo", "apt", "install", "-y", pkg],
+        "dnf": ["sudo", "dnf", "install", "-y", pkg],
+        "pacman": ["sudo", "pacman", "-S", "--noconfirm", pkg],
+        "zypper": ["sudo", "zypper", "install", "-y", pkg],
+        "apk": ["sudo", "apk", "add", pkg],
     }
+    print(f"! Installing {pkg}")
+    run(cmds[manager])
 
-    cmd = [arg.format(pkg=pkg) for arg in templates[manager]]
-    print(f"! Installing {pkg}...")
-    try:
-        subprocess.run(cmd, check=True)
-    except subprocess.CalledProcessError:
-        print(f"! Failed to install {pkg} with command: {' '.join(cmd)}")
-        abort()
+def ensure_packages():
+    manager = get_install_manager()
+    print(f"! Using `{manager}` as the package manager.")
 
-def checkup_and_install(manager):
-    # Cache results to avoid multiple PATH lookups
-    status_map = {pkg: is_installed(pkg) for pkg in REQUIRED_PACKAGES}
-
-    for pkg, ok in status_map.items():
+    for pkg in REQUIRED_PACKAGES:
+        ok = is_installed(pkg)
         print(f"! {pkg} -> {'SATISFIED' if ok else 'NOT INSTALLED'}")
+        if not ok:
+            install_package(manager, pkg)
 
-    for pkg, ok in status_map.items():
-        if not ok: install_package(manager, pkg)
-
-def is_hibridus_installed():
-    return Path("VERSION/VERSION.md").is_file()
-
-def get_installed_version():
-    try:
-        return Path("VERSION/VERSION.md").read_text().strip()
-    except FileNotFoundError:
-        return None
+def get_local_version():
+    if VERSION_FILE.exists():
+        return VERSION_FILE.read_text().strip()
+    return None
 
 def get_remote_version():
-    url = "https://raw.githubusercontent.com/hibridus/VERSION/main/VERSION.md"
     try:
-        r = requests.get(url, timeout=5)
+        r = requests.get(VERSION_URL, timeout=5)
         r.raise_for_status()
         return r.text.strip()
     except:
         return None
 
 def load_cache():
-    try:
-        with open(REPOS_CACHE) as f:
-            return set(json.load(f))
-    except FileNotFoundError:
-        return set()
+    if REPOS_CACHE.exists():
+        return set(json.loads(REPOS_CACHE.read_text()))
+    return set()
 
 def save_cache(repos):
-    REPOS_CACHE.parent.mkdir(exist_ok=True)
-    with open(REPOS_CACHE, "w") as f:
-        json.dump(sorted(repos), f, indent=2)
+    CACHE_DIR.mkdir(exist_ok=True)
+    REPOS_CACHE.write_text(json.dumps(sorted(repos), indent=2))
 
-def get_repositories():
-    url = f"https://api.github.com/orgs/{"hibridus"}/repos"
+def fetch_repositories():
     try:
-        r = requests.get(url, timeout=10)
+        r = requests.get(REPOS_API, timeout=10)
         r.raise_for_status()
         return [repo["name"] for repo in r.json()]
-    except Exception:
-        print("! Failed to fetch repositories from GitHub.")
-        abort()
+    except:
+        abort("Failed to fetch repositories from GitHub.")
 
 def parse_repo_name(name):
-    # Split repo name into base and submodule
-    # foo_bar_xyz -> ("foo", "bar_xyz")
     base, *rest = name.split("_", 1)
     return base, rest[0] if rest else None
 
@@ -151,89 +125,84 @@ def clone_repo(repo):
 
     if any(target.iterdir()):
         print(f"! Skipping {repo}, directory already exists.")
-        return True
+        return
 
     print(f"! Cloning {repo} into {target}")
-    try:
-        subprocess.run(
-            ["git", "clone", f"https://github.com/{"hibridus"}/{repo}.git", str(target), "--depth=1"],
-            check=True
-        )
-        return True
-    except subprocess.CalledProcessError:
-        print(f"! Failed to clone {repo}")
-        abort()
+    run([
+        "git",
+        "clone",
+        f"https://github.com/hibridus/{repo}.git",
+        str(target),
+        "--depth=1"
+    ])
 
 def sync_repositories():
     print("Syncing GitHub repositories...")
 
     cached = load_cache()
-    repos = get_repositories()
-    new_cache = set(cached)
+    repos = fetch_repositories()
 
     for repo in repos:
-        if repo == "install": # To not sync this script
+        if repo == "install":
             continue
-        
         if repo in cached:
             print(f"! {repo} already cached, skipping.")
             continue
+        clone_repo(repo)
+        cached.add(repo)
 
-        if clone_repo(repo):
-            new_cache.add(repo)
-
-    if new_cache != cached:
-        save_cache(new_cache)
-
-    print("Repository sync done.")
+    save_cache(cached)
 
 def mount_config_json():
     CACHE_DIR.mkdir(exist_ok=True)
     CONFIG_JSON.write_text(
 """{
     "COMPILER": "clang",
-    "FLAGS": "-O0 -ffreestanding -fno-stack-protector -fno-pic -fno-pie -mno-red-zone -nostdlib -fno-builtin -fno-unwind-tables -fno-asynchronous-unwind-tables -Iinclude",
+    "FLAGS": "-O0 -ffreestanding -fno-stack-protector -fno-pic -fno-pie -mno-red-zone -nostdlib -fno-builtin -fno-unwind-tables -fno-asynchronous-unwind-tables",
     "TARGET": "x86_64-elf",
     "LINKER": "ld.lld"
-}""")
-    print("! JSON mounted in cache/config.json\n" + CONFIG_JSON.read_text())
+}"""
+    )
+    print("! JSON mounted in cache/config.json")
+
+def limine_installed():
+    return shutil.which("limine") is not None
 
 def setup_limine():
+    if limine_installed():
+        print("! Limine already installed, skipping.")
+        return
+
     limine_dir = SRC_DIR / "limine"
-
     if not limine_dir.exists():
-        print("! Limine does not exist")
-        abort()
+        abort("Limine source not found.")
 
-    subprocess.run(["./bootstrap"], check=True, cwd=limine_dir)
-    subprocess.run(["./configure", f"""--prefix={os.environ.get("PREFIX", "/usr/local")}""", "--enable-bios"], check=True, cwd=limine_dir)
-    subprocess.run(["make", "install"], check=True, cwd=limine_dir)
-
-    print(f"! Limine compiled and installed at the system.")
+    print("! Installing Limine...")
+    run(["./bootstrap"], cwd=limine_dir)
+    run(
+        ["./configure", f"--prefix={os.environ.get('PREFIX', '/usr/local')}", "--enable-bios"],
+        cwd=limine_dir
+    )
+    run(["make", "install"], cwd=limine_dir)
 
 def main():
     print("Getting installation info...")
-    manager = get_install_manager()
-    print(f"! Using `{manager}` as the package manager.")
-    checkup_and_install(manager)
+    ensure_packages()
 
-    print("Checking system source code...")
-    
     SRC_DIR.mkdir(parents=True, exist_ok=True)
-    
-    if not is_hibridus_installed():
+
+    local_version = get_local_version()
+    remote_version = get_remote_version()
+
+    if not local_version:
         print("! Hibridus not detected.")
         print("! Starting fresh installation...")
         sync_repositories()
         mount_config_json()
     else:
-        version = get_installed_version()
-        print(f"! Hibridus alredy installed.")
-        print(f"! Installed version: {version}")
-        print("Checking for updates...")
-        remote_version = get_remote_version()
-        if version != remote_version:
-            print(f"! The installed version {version} not synchronized.")
+        print(f"! Installed version: {local_version}")
+        if remote_version and local_version != remote_version:
+            print("! Version mismatch, syncing repositories...")
             sync_repositories()
 
     setup_limine()
